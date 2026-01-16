@@ -36,8 +36,7 @@ private slots:
     void onExport();
     void onDecryptPreview();
     void onListContextMenu(const QPoint &pos);
-    void onExportOneDone(int successDelta);
-    void onExportTaskDone();
+    void onExportChunkDone(int processedCount, int successCount);
     void onExportCanceled();
 
 private:

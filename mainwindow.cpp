@@ -369,6 +369,9 @@ public:
         const int safeBegin = qMax(0, m_beginIndex);
         const int safeEnd = qMin(m_endIndex, m_items->size());
 
+        int processedCount = 0;
+        int successCount = 0;
+
         for (int i = safeBegin; i < safeEnd; ++i)
         {
             if (m_cancelFlag->loadRelaxed() != 0)
@@ -388,15 +391,20 @@ public:
                 ok = writeBinaryFile(outPath, blob, &err);
             }
 
-            if (m_window)
+            ++processedCount;
+            if (ok)
             {
-                QMetaObject::invokeMethod(m_window, "onExportOneDone", Qt::QueuedConnection, Q_ARG(int, ok ? 1 : 0));
+                ++successCount;
             }
         }
 
         if (m_window)
         {
-            QMetaObject::invokeMethod(m_window, "onExportTaskDone", Qt::QueuedConnection);
+            QMetaObject::invokeMethod(m_window,
+                                      "onExportChunkDone",
+                                      Qt::QueuedConnection,
+                                      Q_ARG(int, processedCount),
+                                      Q_ARG(int, successCount));
         }
     }
 
@@ -665,6 +673,7 @@ void MainWindow::onExport()
     m_exportProgressDialog->setAutoReset(false);
     m_exportProgressDialog->setMinimumDuration(0);
     m_exportProgressDialog->setValue(0);
+    m_exportProgressDialog->setLabelText(QStringLiteral("正在导出：%1 / %2").arg(m_exportDone).arg(m_exportTotal));
     m_exportProgressDialog->show();
     connect(m_exportProgressDialog, &QProgressDialog::canceled, this, &MainWindow::onExportCanceled);
 
@@ -693,29 +702,24 @@ void MainWindow::onExport()
     }
 }
 
-void MainWindow::onExportOneDone(int successDelta)
+void MainWindow::onExportChunkDone(int processedCount, int successCount)
 {
     if (!m_exportProgressDialog)
     {
         return;
     }
 
-    ++m_exportDone;
-    if (successDelta > 0)
+    if (processedCount > 0)
     {
-        m_exportSuccess += successDelta;
+        m_exportDone += processedCount;
+    }
+    if (successCount > 0)
+    {
+        m_exportSuccess += successCount;
     }
 
-    m_exportProgressDialog->setValue(m_exportDone);
-    m_exportProgressDialog->setLabelText(QStringLiteral("正在导出：%1 / %2").arg(m_exportDone).arg(m_exportTotal));
-}
-
-void MainWindow::onExportTaskDone()
-{
-    if (!m_exportProgressDialog)
-    {
-        return;
-    }
+    m_exportProgressDialog->setValue(qMin(m_exportDone, m_exportTotal));
+    m_exportProgressDialog->setLabelText(QStringLiteral("正在导出：%1 / %2").arg(qMin(m_exportDone, m_exportTotal)).arg(m_exportTotal));
 
     --m_exportTasksRemaining;
     if (m_exportTasksRemaining > 0)
